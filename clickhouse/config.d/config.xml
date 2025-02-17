@@ -1,0 +1,26 @@
+<clickhouse>
+
+  <path>/data/clickhouse/data/</path>
+  <tmp_path>/data/clickhouse/tmp/</tmp_path>
+  <listen_host>::</listen_host>
+
+  <logger>
+    <log>/data/clickhouse/logs/clickhouse-server.log</log>
+    <errorlog>/data/clickhouse/logs/clickhouse-server.err.log</errorlog>
+    <count>5</count>
+  </logger>
+
+  <merge_tree>
+    <replace_long_file_name_to_hash>1</replace_long_file_name_to_hash>
+  </merge_tree>
+
+  <query_cache>
+    <max_size_in_bytes>5368709120</max_size_in_bytes> <!-- 5GB -->
+    <max_entries>65536</max_entries>
+    <max_entry_size_in_bytes>5242880</max_entry_size_in_bytes>  <!-- 5MB -->
+  </query_cache>
+
+  <timezone>UTC</timezone>
+  <max_concurrent_queries>1000</max_concurrent_queries>
+
+</clickhouse>

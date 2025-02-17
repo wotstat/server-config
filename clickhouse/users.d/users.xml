@@ -1,0 +1,29 @@
+<clickhouse>
+  <users>
+    <!-- <default>
+      <access_management>1</access_management>
+      <named_collection_control>1</named_collection_control>
+      <show_named_collections>1</show_named_collections>
+      <show_named_collections_secrets>1</show_named_collections_secrets>
+    </default> -->
+
+    <default>
+      <networks>
+        <ip>::1</ip>
+        <ip>127.0.0.1</ip>
+        <ip>xxxxxxxxxxxxx</ip> <!-- My vpn IP -->
+        <ip>172.25.0.0/16</ip> <!-- event-saver -->
+        <ip>172.26.0.0/16</ip> <!-- positions-server -->
+        <ip>172.27.0.0/16</ip> <!-- loki-clickhouse -->
+        <ip>172.28.0.0/16</ip> <!-- grafana -->
+      </networks>
+    </default>
+  </users>
+
+  <profiles>
+    <default>
+      <allow_experimental_object_type>1</allow_experimental_object_type>
+      <enable_json_type>true</enable_json_type>
+    </default>
+  </profiles>
+</clickhouse>
