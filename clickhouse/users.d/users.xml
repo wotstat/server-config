@@ -16,6 +16,8 @@
         <ip>172.26.0.0/16</ip> <!-- positions-server -->
         <ip>172.27.0.0/16</ip> <!-- loki-clickhouse -->
         <ip>172.28.0.0/16</ip> <!-- grafana -->
+        <ip>172.29.0.0/16</ip> <!-- server-microtasks -->
+        <ip>172.30.0.0/16</ip> <!-- realtime -->
       </networks>
     </default>
   </users>
