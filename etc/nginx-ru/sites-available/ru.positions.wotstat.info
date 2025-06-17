@@ -1,0 +1,41 @@
+
+server {
+  server_name ru.positions.wotstat.info;
+
+  proxy_cache wotstat_cache;
+  proxy_cache_key "$scheme$request_method$host$request_uri";
+  proxy_cache_valid 200 301 302 30d;
+  proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+  proxy_cache_background_update on;
+  proxy_cache_lock on;
+
+  location / {
+    proxy_pass http://$main_server_ip$request_uri;
+    proxy_method $request_method;
+    proxy_set_header Host positions.wotstat.info;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header X-Cache-Status $upstream_cache_status always;
+    add_header X-Cache-Age $upstream_http_age always;
+  }
+
+  listen 443 ssl; # managed by Certbot
+  ssl_certificate /etc/letsencrypt/live/alternative.positions.wotstat.info/fullchain.pem; # managed by Certbot
+  ssl_certificate_key /etc/letsencrypt/live/alternative.positions.wotstat.info/privkey.pem; # managed by Certbot
+  include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+  ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+
+}
+
+server {
+  if ($host = ru.positions.wotstat.info) {
+    return 301 https://$host$request_uri;
+  } # managed by Certbot
+
+  server_name ru.positions.wotstat.info;
+
+  listen 80;
+  return 404; # managed by Certbot
+}
