@@ -8,9 +8,12 @@
     <log>/data/clickhouse/logs/clickhouse-server.log</log>
     <errorlog>/data/clickhouse/logs/clickhouse-server.err.log</errorlog>
     <count>5</count>
+    <level>warning</level>
+    <console_log_level>error</console_log_level>
   </logger>
 
   <merge_tree>
+    <max_suspicious_broken_parts>200</max_suspicious_broken_parts>
     <replace_long_file_name_to_hash>1</replace_long_file_name_to_hash>
   </merge_tree>
 
@@ -22,5 +25,28 @@
 
   <timezone>UTC</timezone>
   <max_concurrent_queries>1000</max_concurrent_queries>
+
+
+  <!-- Reduce logs tables -->
+  <query_log>
+    <ttl>event_date + INTERVAL 30 DAY DELETE</ttl>
+  </query_log>
+
+  <trace_log>
+    <ttl>event_date + INTERVAL 30 DAY DELETE</ttl>
+  </trace_log>
+
+  <processors_profile_log>
+    <ttl>event_date + INTERVAL 30 DAY DELETE</ttl>
+  </processors_profile_log>
+
+  <part_log>
+    <ttl>event_date + INTERVAL 30 DAY DELETE</ttl>
+  </part_log>
+
+  <text_log>
+    <ttl>event_date + INTERVAL 30 DAY DELETE</ttl>
+  </text_log>
+
 
 </clickhouse>
