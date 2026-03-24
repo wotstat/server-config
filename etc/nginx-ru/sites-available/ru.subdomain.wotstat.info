@@ -14,18 +14,39 @@ map $http_upgrade $connection_upgrade {
   websocket upgrade;
 }
 
+map $upstream_http_cache_control $do_not_store {
+  default 1;
+  "~*no-store" 1;
+  "~*no-cache" 1;
+  "~*private" 1;
+  "~*max-age\s*=\s*[1-9]\d*" 0;
+  "~*s-maxage\s*=\s*[1-9]\d*" 0;
+}
+
+map "$upstream_cache_status:$do_not_store" $x_cache_status_pretty {
+  "~^MISS:1$" "DYNAMIC";
+  "~^HIT:0$" "HIT";
+  "~^MISS:0$" "MISS";
+  "~^BYPASS:" "BYPASS";
+  "~^EXPIRED:" "EXPIRED";
+  "~^STALE:" "STALE";
+  "~^UPDATING:" "UPDATING";
+  "~^REVALIDATED:" "REVALIDATED";
+  default "UNKNOWN";
+}
+
 server {
   server_name ~^ru\.([^.]+)\.wotstat\.info$;
 
 
   location / {
     proxy_pass https://$main_server_ip$request_uri;
-
     proxy_http_version 1.1;
 
     # Always set standard headers
     proxy_ssl_server_name on;
     proxy_set_header Host $subdomain.wotstat.info;
+    proxy_set_header CF-Connecting-IP $remote_addr;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
@@ -34,25 +55,24 @@ server {
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection $connection_upgrade;
 
-    # Cache only non-WebSocket traffic
-    proxy_no_cache $is_websocket;
+    # Only these should affect bypass/store:
     proxy_cache_bypass $is_websocket;
+    proxy_no_cache $do_not_store $is_websocket;
 
-    proxy_cache wotstat_cache;
+    proxy_cache wotstat_cache_shared;
     proxy_cache_key "$scheme$request_method$host$request_uri";
-    proxy_cache_valid 200 301 302 30d;
     proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
     proxy_cache_background_update on;
     proxy_cache_lock on;
 
-    add_header X-Cache-Status $upstream_cache_status always;
-    add_header X-Cache-Age $upstream_http_age always;
+    add_header X-Cache-Status $x_cache_status_pretty always;
   }
 
+
   listen 80;
-  listen 443 ssl;
-  ssl_certificate /etc/letsencrypt/live/ru-all-wotstat/fullchain.pem;
-  ssl_certificate_key /etc/letsencrypt/live/ru-all-wotstat/privkey.pem;
+  listen 443 ssl http2;
+  ssl_certificate /etc/letsencrypt/live/wotstat-subdomains/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/wotstat-subdomains/privkey.pem;
   include /etc/letsencrypt/options-ssl-nginx.conf;
   ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 }
