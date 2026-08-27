@@ -20,6 +20,8 @@ server {
   limit_req_status 429;
   limit_conn_status 429;
 
+  client_max_body_size 10M;
+
   location / {
     proxy_pass http://localhost:8123;
     proxy_set_header Host $host;
