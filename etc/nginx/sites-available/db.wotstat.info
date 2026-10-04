@@ -1,7 +1,15 @@
 # Shared memory zone for limiting concurrent requests
 limit_conn_zone $binary_remote_addr zone=clickhouse_conn_by_ip:10m;
 limit_conn_zone $server_name zone=clickhouse_conn_global:10m;
-limit_req_zone $binary_remote_addr zone=clickhouse_req_by_ip:10m rate=10r/s;
+limit_req_zone $binary_remote_addr zone=clickhouse_req_by_ip:10m rate=20r/s;
+
+upstream clickhouse_http {
+  server 127.0.0.1:8123;
+
+  keepalive 32;
+  keepalive_requests 1000;
+  keepalive_timeout 60s;
+}
 
 server {
   server_name db.wotstat.info;
@@ -11,19 +19,22 @@ server {
   # for local redirects from wotstat.info
   set_real_ip_from 127.0.0.1;
   set_real_ip_from ::1;
+
   real_ip_header CF-Connecting-IP;
   real_ip_recursive on;
 
   limit_conn clickhouse_conn_by_ip 20;
   limit_conn clickhouse_conn_global 400;
-  limit_req zone=clickhouse_req_by_ip burst=200 nodelay;
+  limit_req zone=clickhouse_req_by_ip burst=300 nodelay;
   limit_req_status 429;
   limit_conn_status 429;
 
   client_max_body_size 10M;
 
   location / {
-    proxy_pass http://localhost:8123;
+    proxy_pass http://clickhouse_http;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $remote_addr;
@@ -31,16 +42,29 @@ server {
 
     proxy_connect_timeout 40s;
     proxy_read_timeout 120s;
+    proxy_send_timeout 120s;
+
+    proxy_buffering on;
+    proxy_buffers 16 16k;
+    proxy_busy_buffers_size 64k;
+
+    proxy_hide_header Access-Control-Allow-Headers;
+    add_header Access-Control-Allow-Headers "origin, x-requested-with, x-clickhouse-format, x-clickhouse-user, x-clickhouse-key, Authorization, Content-Type, X-Wotstat-Query-Cache-Key, X-Wotstat-Query-Cache-TTL, X-Wotstat-Query-Cache-Until" always;
+    add_header Access-Control-Expose-Headers "Age, Date" always;
+
     error_page 429 /error-rate-limit.html;
   }
 
   location = /error-rate-limit.html {
     internal;
+    add_header Access-Control-Allow-Origin "*" always;
     return 429 "Too many requests, try again later.";
   }
 
   listen 80;
+  listen [::]:80;
   listen 443 ssl; # managed by Certbot
+  listen [::]:443 ssl;
   ssl_certificate /etc/letsencrypt/live/db.wotstat.info/fullchain.pem; # managed by Certbot
   ssl_certificate_key /etc/letsencrypt/live/db.wotstat.info/privkey.pem; # managed by Certbot
   include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
