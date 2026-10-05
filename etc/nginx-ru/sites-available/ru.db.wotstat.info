@@ -1,0 +1,16 @@
+# An exact server_name takes priority over the shared ru.<subdomain> server.
+server {
+  server_name ru.db.wotstat.info;
+
+  location / {
+    set $wotstat_query_upstream_host db.wotstat.info;
+    include /etc/nginx/snippets/query-cache.conf;
+  }
+
+  listen 80;
+  listen 443 ssl;
+  ssl_certificate /etc/letsencrypt/live/wotstat-subdomains/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/wotstat-subdomains/privkey.pem;
+  include /etc/letsencrypt/options-ssl-nginx.conf;
+  ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}

@@ -8,6 +8,11 @@ server {
   proxy_cache_background_update on;
   proxy_cache_lock on;
 
+  location = /api/db/ {
+    set $wotstat_query_upstream_host wotstat.info;
+    include /etc/nginx/snippets/query-cache.conf;
+  }
+
   location / {
     # resolver 8.8.8.8 1.1.1.1 valid=300s;
     # proxy_pass http://wotstat.info$request_uri;

@@ -32,21 +32,7 @@ server {
   client_max_body_size 10M;
 
   location / {
-    proxy_pass http://clickhouse_http;
-    proxy_http_version 1.1;
-    proxy_set_header Connection "";
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $remote_addr;
-    proxy_set_header X-Forwarded-Proto $scheme;
-
-    proxy_connect_timeout 40s;
-    proxy_read_timeout 120s;
-    proxy_send_timeout 120s;
-
-    proxy_buffering on;
-    proxy_buffers 16 16k;
-    proxy_busy_buffers_size 64k;
+    include /etc/nginx/snippets/query-cache.conf;
 
     proxy_hide_header Access-Control-Allow-Headers;
     add_header Access-Control-Allow-Headers "origin, x-requested-with, x-clickhouse-format, x-clickhouse-user, x-clickhouse-key, Authorization, Content-Type, X-Wotstat-Query-Cache-Key, X-Wotstat-Query-Cache-TTL, X-Wotstat-Query-Cache-Until" always;
