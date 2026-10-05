@@ -1,0 +1,9 @@
+name = "wotstat-query-cache"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = false
+preview_urls = false
+
+[[routes]]
+pattern = "wotstat.info/api/db/*"
+zone_name = "wotstat.info"
