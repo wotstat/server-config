@@ -5,13 +5,31 @@ upstream event_saver {
 
 server {
   server_name wotstat.info;
+  root /app/wotstat/analytics-frontend/dist;
 
   include /etc/nginx/conf.d/cloudflare-realip.conf;
   include /etc/nginx/conf.d/my-proxy-realip.conf;
   real_ip_header CF-Connecting-IP;
   real_ip_recursive on;
 
-  location /api/db/ {
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-Host $wotstat_meta_host;
+  proxy_set_header X-Real-IP $remote_addr;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-Proto $scheme;
+
+  # Кэш включён только в location, ведущих в Bun. TTL задаёт сам Bun.
+  proxy_cache off;
+  proxy_cache_key "$scheme$wotstat_meta_host$request_uri";
+  # Вариант из Vary: X-Forwarded-Host уже учтён в ключе после проверки IP.
+  proxy_ignore_headers Vary;
+  proxy_cache_lock on;
+  # Эти таймауты должны быть больше RENDER_TIMEOUT_MS (по умолчанию 15 секунд).
+  proxy_cache_lock_age 20s;
+  proxy_cache_lock_timeout 20s;
+
+  # ^~ не даёт правилу статики перехватывать API-запросы с расширением в пути.
+  location ^~ /api/db/ {
     proxy_pass http://127.0.0.1:80/;
     proxy_http_version 1.1;
     proxy_set_header Connection '';
@@ -25,15 +43,11 @@ server {
     proxy_send_timeout 120s;
   }
 
-  location /api {
+  location ^~ /api {
     proxy_pass http://event_saver;
     proxy_next_upstream error timeout non_idempotent;
     proxy_next_upstream_tries 2;
     proxy_connect_timeout 2s;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
   }
 
   location /health-check {
@@ -41,28 +55,45 @@ server {
     return 200 "OK";
   }
 
-  location / {
-    resolver 127.0.0.53 valid=30s ipv6=off;
-    resolver_timeout 5s;
-    set $website_upstream wotstat.info.website.yandexcloud.net;
-    proxy_pass http://$website_upstream;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-
-    proxy_intercept_errors on;
-    error_page 404 =200 /index.html;
+  # Главная и явный index.html обрабатываются Bun, включая временный bypass.
+  location = / {
+    proxy_pass http://127.0.0.1:9110;
+    proxy_cache wotstat_meta;
+    proxy_read_timeout 25s;
   }
 
-  location ~* \.(?:js|css|png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|map)$ {
-    resolver 127.0.0.53 valid=30s ipv6=off;
-    resolver_timeout 5s;
-    set $website_upstream wotstat.info.website.yandexcloud.net;
-    proxy_pass http://$website_upstream;
-    proxy_set_header Host $host;
+  location = /index.html {
+    proxy_pass http://127.0.0.1:9110;
+    proxy_cache wotstat_meta;
+    proxy_read_timeout 25s;
+  }
 
-    proxy_intercept_errors off;
+  location = /health {
+    return 404;
+  }
+  location = /ready {
+    return 404;
+  }
+
+  # Vite assets имеют хеш в имени. Отсутствующий файл не превращается в HTML.
+  location ^~ /assets/ {
+    try_files $uri =404;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+  }
+
+  # Файлы из public/: favicon, robots.txt, sitemap.xml и прочая статика.
+  location ~* \.(?:js|mjs|css|png|jpg|jpeg|gif|svg|ico|webp|avif|woff2?|ttf|otf|eot|map|txt|xml|json|webmanifest|pdf|wasm|mp4|webm|mp3|ogg)$ {
+    try_files $uri =404;
+  }
+
+  location / {
+    try_files $uri @meta;
+  }
+
+  location @meta {
+    proxy_pass http://127.0.0.1:9110;
+    proxy_cache wotstat_meta;
+    proxy_read_timeout 25s;
   }
 
   listen 443 ssl; # managed by Certbot
@@ -71,7 +102,6 @@ server {
   ssl_certificate_key /etc/letsencrypt/live/wotstat.info/privkey.pem; # managed by Certbot
   include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
   ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
-
 }
 
 server {
@@ -84,5 +114,4 @@ server {
   listen 80;
   listen [::]:80;
   return 404; # managed by Certbot
-
 }
