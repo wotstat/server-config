@@ -16,14 +16,15 @@ function parameters(uri) {
 // This cheap check runs before cache lookup. No body reading or SHA-256 on HIT.
 function policy(r) {
   if (r.method !== 'POST' || (r.uri !== '/' && r.uri !== '/api/db/')) return null
-  // Shared cache is deliberately limited to the frontend's public read-only account.
-  if (r.headersIn.Authorization !== 'Basic cHVibGljOg==' || r.headersIn.Cookie
+  // Both accounts must keep the same public read role and result-affecting settings.
+  const scope = r.variables.wotstat_query_cache_scope
+  if (!scope || r.headersIn.Cookie
     || r.rawHeadersIn.some(([name]) => name.toLowerCase().startsWith('x-clickhouse-'))) return null
 
   const key = r.headersIn[PREFIX + 'Key']
   const ttl = r.headersIn[PREFIX + 'TTL']
   const until = r.headersIn[PREFIX + 'Until']
-  if (!/^v1:[0-9a-f]{64}$/.test(key || '') || (!!ttl === !!until)) return null
+  if (!/^[0-9a-f]{64}$/.test(key || '') || (!!ttl === !!until)) return null
 
   const params = parameters(r.variables.request_uri)
   // The browser SDK sends unique parameter names. With duplicate settings,
@@ -38,14 +39,14 @@ function policy(r) {
   const now = Math.floor(Date.now() / 1000)
   if (ttl) {
     if (!/^[1-9][0-9]*$/.test(ttl) || Number(ttl) > MAX_TTL) return null
-    return { key, identity: ['ttl', ttl], expires: now + Number(ttl), params }
+    return { scope, key, identity: ['ttl', ttl], expires: now + Number(ttl), params }
   }
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(until)) return null
   const date = new Date(until)
   if (!Number.isFinite(date.getTime()) || date.toISOString() !== until) return null
   const expires = Math.floor(date.getTime() / 1000)
   if (expires <= now || expires - now > MAX_TTL) return null
-  return { key, identity: ['until', until], expires, params }
+  return { scope, key, identity: ['until', until], expires, params }
 }
 
 function bypass(r) {
@@ -72,11 +73,11 @@ function verify(r) {
       .sort(([ak, av], [bk, bv]) => ak < bk ? -1 : ak > bk ? 1 : av < bv ? -1 : av > bv ? 1 : 0)
 
     const canonical = JSON.stringify([
-      'wotstat-query-cache-v1', 'POST', 'wotstat-clickhouse', params,
-      r.headersIn.Authorization || '', cache.identity, body,
+      'wotstat-clickhouse', cache.scope, 'POST', params,
+      cache.identity, body,
     ])
 
-    const key = 'v1:' + crypto.createHash('sha256').update(canonical).digest('hex')
+    const key = crypto.createHash('sha256').update(canonical).digest('hex')
     if (key !== cache.key) {
       r.return(400, 'Query cache key does not match the request\n')
       return

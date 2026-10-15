@@ -1,3 +1,4 @@
+-- Начальная установка. Для существующего сервера: migrate-public-reader.sql.
 CREATE USER if not exists public IDENTIFIED WITH no_password
   DEFAULT DATABASE WOT
   SETTINGS
@@ -15,7 +16,12 @@ CREATE QUOTA if not exists public
     FOR RANDOMIZED INTERVAL 1 DAY MAX queries = 5000, result_rows = '10M', execution_time = 2000
 TO public;
 
-GRANT SELECT ON WOT.Event_OnBattleStart TO public;
-GRANT SELECT ON WOT.Event_OnBattleResult TO public;
-GRANT SELECT ON WOT.Event_OnShot TO public;
-GRANT SELECT ON WOT.Event_OnLootboxOpen TO public;
+CREATE ROLE IF NOT EXISTS public_reader;
+
+GRANT SELECT ON WOT.Event_OnBattleStart TO public_reader;
+GRANT SELECT ON WOT.Event_OnBattleResult TO public_reader;
+GRANT SELECT ON WOT.Event_OnShot TO public_reader;
+GRANT SELECT ON WOT.Event_OnLootboxOpen TO public_reader;
+
+GRANT public_reader TO public;
+SET DEFAULT ROLE public_reader TO public;

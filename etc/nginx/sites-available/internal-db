@@ -1,0 +1,14 @@
+# Включить в sites-enabled на основном сервере. Этот вход не использует публичные
+# limit_req/limit_conn; имя пользователя само по себе не отключает лимиты снаружи.
+server {
+  listen 8124;
+  server_name internal-db;
+
+  allow 127.0.0.1;
+  allow 172.31.0.0/16; # og-meta
+  deny all;
+
+  location / {
+    include /etc/nginx/snippets/query-cache.conf;
+  }
+}

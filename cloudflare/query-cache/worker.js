@@ -5,17 +5,25 @@ const CREATED = PREFIX + 'Created'
 const EXPIRES = PREFIX + 'Expires'
 
 
+// Scope selection only; ClickHouse authenticates the original request on MISS.
+function cacheScope(request) {
+  const basic = /^Basic (.+)$/i.exec(request.headers.get('Authorization') || '')
+  if (!basic) return ''
+  return /^(public|internal-public):/.test(atob(basic[1])) ? 'public' : ''
+}
+
 function policy(request, url) {
   if (request.method !== 'POST' || url.pathname !== '/api/db/') return null
   const headers = request.headers
 
-  if (headers.get('Authorization') !== 'Basic cHVibGljOg==' || headers.get('Cookie')) return null
+  const scope = cacheScope(request)
+  if (!scope || headers.get('Cookie')) return null
   if ([...headers.keys()].some(name => name.startsWith('x-clickhouse-'))) return null
 
   const key = headers.get(PREFIX + 'Key')
   const ttl = headers.get(PREFIX + 'TTL')
   const until = headers.get(PREFIX + 'Until')
-  if (!/^v1:[0-9a-f]{64}$/.test(key || '') || (!!ttl === !!until)) return null
+  if (!/^[0-9a-f]{64}$/.test(key || '') || (!!ttl === !!until)) return null
 
   // Decode as strictly as nginx: URLSearchParams would accept malformed escapes.
   const decode = value => decodeURIComponent(value.replace(/\+/g, ' '))
@@ -33,7 +41,7 @@ function policy(request, url) {
   const now = Math.floor(Date.now() / 1000)
   if (ttl) {
     if (!/^[1-9][0-9]*$/.test(ttl) || Number(ttl) > MAX_TTL) return null
-    return { key, expires: now + Number(ttl) }
+    return { scope, key, expires: now + Number(ttl) }
   }
 
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(until)) return null
@@ -42,7 +50,7 @@ function policy(request, url) {
   if (!Number.isFinite(date.getTime()) || date.toISOString() !== until) return null
 
   const expires = Math.floor(date.getTime() / 1000)
-  return expires > now && expires - now <= MAX_TTL ? { key, expires } : null
+  return expires > now && expires - now <= MAX_TTL ? { scope, key, expires } : null
 }
 
 function responseExpiry(response, requestedExpiry, now) {
@@ -120,7 +128,7 @@ export default {
       try {
         cache = await caches.open(CACHE_NAME)
 
-        const keyUrl = new URL('/api/db/__query-cache/' + requested.key, url.origin)
+        const keyUrl = new URL('/api/db/__query-cache/' + requested.scope + '/' + requested.key, url.origin)
         cacheKey = new Request(keyUrl, { headers: { 'Accept-Encoding': 'gzip' } })
         const cached = await cache.match(cacheKey)
 
