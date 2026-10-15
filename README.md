@@ -112,7 +112,8 @@ ufw allow in proto tcp from 172.31.0.0/16 to 172.17.0.1 port 8124 comment 'og-me
 ```
 
 Здесь `172.17.0.1` — адрес `host.docker.internal` внутри production-контейнера.
-Проверить его можно через `docker compose -p og-meta exec -T og-meta getent hosts host.docker.internal`;
+Проверить его можно через `docker exec <running-meta-container> getent hosts host.docker.internal`
+(активный `meta-blue` или `meta-green` виден в `docker ps`);
 если адрес отличается, использовать его в правиле. Это соединение к самому хосту,
 поэтому требуется входящее правило (`allow in`), а не `ufw route`.
 Правило действует сразу, перезапуск Nginx и контейнера не нужен.
@@ -120,3 +121,36 @@ ufw allow in proto tcp from 172.31.0.0/16 to 172.17.0.1 port 8124 comment 'og-me
 После настройки проверить запрос к `CLICKHOUSE_PROXY_URL` из контейнера с
 авторизацией `internal-public`: `SELECT 1` должен вернуть HTTP 200 и `1`.
 Проверка через `curl http://127.0.0.1:8124/` на хосте не проверяет доступ из Docker.
+
+## Frontend/meta: gateway и SPA fallback
+
+Для обновлений frontend/meta используется отдельный Nginx внутри Compose `og-meta`.
+Внешний Nginx всегда направляет HTML и PNG на `127.0.0.1:9110`; скрипты деплоя
+не изменяют и не перезагружают основной Nginx.
+
+Однократная настройка: сначала активировать первый релиз командой
+`rerun.sh meta --incoming <сборка>` из `analytics-frontend-meta` с путями
+`--app-dir` и `--frontend-dir`. Сборка должна содержать `dist/`, `dist-meta/`
+и `dist-meta/release.json`; порт `127.0.0.1:9110` должен быть свободен.
+После появления `analytics-frontend/current` и `shared/assets` установить `sites-available/wotstat.info`,
+`sites-available/og.wotstat.info`, проверить и применить
+конфигурацию вручную. Настройки кеша на RU остаются прежними.
+Первый запуск — [analytics-frontend-meta: деплой](../analytics-frontend-meta/README.md#деплой).
+
+- `/assets/` обслуживается из `analytics-frontend/shared/assets`.
+- Public-файлы и SPA fallback — из `analytics-frontend/current`, ссылки на `dist`
+  последнего успешно активированного релиза.
+- HTML при `500/502/503/504` upstream получает локальный `index.html`, статус 200 и
+  `Cache-Control: no-store`. Отдельный internal location предотвращает цикл в proxy.
+- Основной Nginx не использует stale HTML: при отказе меты доступна локальная SPA.
+  TTL HTML ограничен backend до 300 секунд.
+- `wotstat-proxy.ru` сохраняет аварийный stale cache на случай недоступности всего
+  основного сервера. Полнота старой страницы зависит от наличия её ассетов в кеше RU.
+- PNG допускает stale cache при ошибке или таймауте upstream. При отсутствии
+  сохранённой картинки возвращается ошибка PNG; HTML остаётся доступен.
+- Кеш SQL и остальные API этой схемой не затрагиваются.
+
+Ассеты сохраняются по манифестам релизов: активный и предыдущий защищены,
+остальные — 7 дней + 300 секунд после вывода из обслуживания. GC выполняется
+под общим lock meta/frontend, не по времени изменения файлов. S3 — независимый
+аварийный резерв; его публикация остаётся прежней.

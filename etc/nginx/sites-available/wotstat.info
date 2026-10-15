@@ -5,7 +5,7 @@ upstream event_saver {
 
 server {
   server_name wotstat.info;
-  root /app/wotstat/analytics-frontend/dist;
+  root /app/wotstat/analytics-frontend/current;
 
   include /etc/nginx/conf.d/cloudflare-realip.conf;
   include /etc/nginx/conf.d/my-proxy-realip.conf;
@@ -18,15 +18,11 @@ server {
   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
   proxy_set_header X-Forwarded-Proto $scheme;
 
-  # Кэш включён только в location, ведущих в Bun. TTL задаёт сам Bun.
+  # Кэш включён только для HTML. TTL задаёт сам Bun.
   proxy_cache off;
   proxy_cache_key "$scheme$wotstat_meta_host$request_uri";
   # Вариант из Vary: X-Forwarded-Host уже учтён в ключе после проверки IP.
   proxy_ignore_headers Vary;
-  proxy_cache_lock on;
-  # Эти таймауты должны быть больше RENDER_TIMEOUT_MS (по умолчанию 15 секунд).
-  proxy_cache_lock_age 20s;
-  proxy_cache_lock_timeout 20s;
 
   # ^~ не даёт правилу статики перехватывать API-запросы с расширением в пути.
   location ^~ /api/db/ {
@@ -55,17 +51,13 @@ server {
     return 200 "OK";
   }
 
-  # Главная и явный index.html обрабатываются Bun, включая временный bypass.
-  location = / {
-    proxy_pass http://127.0.0.1:9110;
-    proxy_cache wotstat_meta;
-    proxy_read_timeout 25s;
-  }
-
-  location = /index.html {
-    proxy_pass http://127.0.0.1:9110;
-    proxy_cache wotstat_meta;
-    proxy_read_timeout 25s;
+  # Не перенаправлять fallback в /index.html: он тоже проксируется в gateway.
+  location = /_meta_fallback.html {
+    internal;
+    alias /app/wotstat/analytics-frontend/current/index.html;
+    default_type text/html;
+    open_file_cache off;
+    add_header Cache-Control 'no-store' always;
   }
 
   location = /health {
@@ -77,6 +69,7 @@ server {
 
   # Vite assets имеют хеш в имени. Отсутствующий файл не превращается в HTML.
   location ^~ /assets/ {
+    root /app/wotstat/analytics-frontend/shared;
     try_files $uri =404;
     add_header Cache-Control "public, max-age=31536000, immutable";
   }
@@ -87,13 +80,14 @@ server {
   }
 
   location / {
-    try_files $uri @meta;
-  }
-
-  location @meta {
     proxy_pass http://127.0.0.1:9110;
     proxy_cache wotstat_meta;
-    proxy_read_timeout 25s;
+    proxy_cache_use_stale off;
+    proxy_cache_lock off;
+    proxy_connect_timeout 1s;
+    proxy_read_timeout 5s;
+    proxy_intercept_errors on;
+    error_page 500 502 503 504 =200 /_meta_fallback.html;
   }
 
   listen 443 ssl; # managed by Certbot
