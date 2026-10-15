@@ -17,6 +17,9 @@ server {
 
   location / {
     proxy_pass https://$main_server_ip$request_uri;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
     proxy_method $request_method;
     proxy_set_header Host positions.wotstat.info;
     proxy_set_header X-Real-IP $remote_addr;
