@@ -6,7 +6,7 @@ server {
   real_ip_header CF-Connecting-IP;
   real_ip_recursive on;
 
-  location = /analytics/image.png {
+  location ~ ^/analytics/image\.(?:jpg|png)$ {
     proxy_pass http://127.0.0.1:9110;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Host $wotstat_meta_host;
