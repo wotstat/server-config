@@ -3,7 +3,7 @@
   "log-driver": "loki",
   "log-opts": {
     "loki-url": "http://localhost:3100/loki/api/v1/push",
-    "loki-batch-size": "400",
+    "loki-batch-size": "1048576",
     "loki-retries": "5",
     "max-size": "50m",
     "max-file": "5"
