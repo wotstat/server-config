@@ -1,5 +1,5 @@
 const PREFIX = 'X-Wotstat-Query-Cache-'
-const MAX_TTL = 31 * 24 * 60 * 60
+const MAX_TTL = 100 * 365 * 24 * 60 * 60
 const CACHE_NAME = 'wotstat-query-cache'
 const CREATED = PREFIX + 'Created'
 const EXPIRES = PREFIX + 'Expires'

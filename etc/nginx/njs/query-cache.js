@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 
 const PREFIX = 'X-Wotstat-Query-Cache-'
-const MAX_TTL = 31 * 24 * 60 * 60
+const MAX_TTL = 100 * 365 * 24 * 60 * 60
 
 function parameters(uri) {
   const query = uri.indexOf('?')
