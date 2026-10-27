@@ -40,11 +40,13 @@ server {
 
 
   location / {
-    proxy_pass https://$main_server_ip$request_uri;
+    proxy_pass https://wotstat_main_https$request_uri;
+    include /etc/nginx/snippets/main-failover.conf;
     proxy_http_version 1.1;
 
     # Always set standard headers
     proxy_ssl_server_name on;
+    proxy_ssl_name $subdomain.wotstat.info;
     proxy_set_header Host $subdomain.wotstat.info;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header CF-Connecting-IP $remote_addr;

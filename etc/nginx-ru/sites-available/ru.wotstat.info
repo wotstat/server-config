@@ -14,9 +14,10 @@ server {
   }
 
   location / {
-    # resolver 8.8.8.8 1.1.1.1 valid=300s;
-    # proxy_pass http://wotstat.info$request_uri;
-    proxy_pass https://$main_server_ip$request_uri;
+    proxy_pass https://wotstat_main_https$request_uri;
+    include /etc/nginx/snippets/main-failover.conf;
+    proxy_ssl_server_name on;
+    proxy_ssl_name wotstat.info;
     proxy_method $request_method;
     proxy_set_header Host wotstat.info;
     proxy_set_header X-Forwarded-Host $host;

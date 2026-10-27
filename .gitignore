@@ -1,0 +1,3 @@
+# Rendered per-server files; commit their templates instead.
+/etc/nginx-ru/conf.d/main-upstreams.conf
+/etc/nginx-ru/stream-conf.d/main-relay.conf

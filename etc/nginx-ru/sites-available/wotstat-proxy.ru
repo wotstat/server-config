@@ -9,12 +9,19 @@ server {
   proxy_cache_lock on;
 
   location / {
-    proxy_pass https://$main_server_ip$request_uri;
+    proxy_pass https://wotstat_main_https$request_uri;
+    include /etc/nginx/snippets/main-failover.conf;
+    proxy_http_version 1.1;
+    proxy_ssl_server_name on;
+    proxy_ssl_name wotstat.info;
     proxy_method $request_method;
     proxy_set_header Host wotstat.info;
+    proxy_set_header Connection "";
+    proxy_set_header CF-Connecting-IP $remote_addr;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_redirect https://wotstat.info/ https://wotstat-proxy.ru/;
     add_header X-Cache-Status $upstream_cache_status always;
     add_header X-Cache-Age $upstream_http_age always;
   }
@@ -34,13 +41,20 @@ server {
 
   # Allow HTTP (no redirect) for /api
   location ^~ /api {
-    proxy_pass https://$main_server_ip$request_uri;
+    proxy_pass https://wotstat_main_https$request_uri;
+    include /etc/nginx/snippets/main-failover.conf;
+    proxy_http_version 1.1;
+    proxy_ssl_server_name on;
+    proxy_ssl_name wotstat.info;
     proxy_method $request_method;
 
     proxy_set_header Host wotstat.info;
+    proxy_set_header Connection "";
+    proxy_set_header CF-Connecting-IP $remote_addr;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto http;
+    proxy_redirect https://wotstat.info/ https://wotstat-proxy.ru/;
 
     # (optional) if you want caching on /api over HTTP too
     proxy_cache wotstat_cache_main;

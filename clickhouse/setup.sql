@@ -1,4 +1,4 @@
--- Начальная установка. Для существующего сервера: migrate-public-reader.sql.
+-- Начальная установка; не предназначен для миграции существующего сервера.
 CREATE USER if not exists public IDENTIFIED WITH no_password
   DEFAULT DATABASE WOT
   SETTINGS
