@@ -1,0 +1,153 @@
+# Use the existing mtstat.info certificate expanded to include *.mtstat.info.
+map $host $mtstat_upstream_host {
+  default "";
+  ~^([^.]+)\.mtstat\.info$ $1.wotstat.info;
+}
+
+map $uri $mtstat_positions_no_cache {
+  default 0;
+  ~^/api/ 1;
+}
+
+# Match the dedicated RU routes: these three services live in Object Storage.
+map $host $mtstat_storage_host {
+  default $mtstat_upstream_host;
+  widgets.mtstat.info widgets.wotstat.info.website.yandexcloud.net;
+}
+
+map $host $mtstat_storage_cache {
+  default wotstat_cache_static;
+  widgets.mtstat.info wotstat_cache_widgets;
+  cef-storage.mtstat.info wotstat_cache_cef_storage;
+}
+
+# Exact server names override the generic subdomain proxy below.
+server {
+  server_name db.mtstat.info;
+
+  location / {
+    set $wotstat_query_upstream_host db.wotstat.info;
+    include /etc/nginx/snippets/query-cache.conf;
+  }
+
+  listen 80;
+  listen 443 ssl;
+  ssl_certificate /etc/letsencrypt/live/mtstat.info/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/mtstat.info/privkey.pem;
+  include /etc/letsencrypt/options-ssl-nginx.conf;
+  ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+server {
+  server_name positions.mtstat.info;
+
+  proxy_cache wotstat_cache_positions;
+  proxy_cache_key "$scheme$request_method$host$request_uri";
+  # HTML has no origin TTL; immutable assets keep the origin's Cache-Control.
+  proxy_cache_valid 200 301 302 5m;
+  proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+  proxy_cache_background_update on;
+  proxy_cache_lock on;
+  proxy_no_cache $mtstat_positions_no_cache $is_websocket;
+  proxy_cache_bypass $mtstat_positions_no_cache $is_websocket;
+
+  location / {
+    proxy_pass https://wotstat_main_https$request_uri;
+    include /etc/nginx/snippets/main-failover.conf;
+    proxy_ssl_server_name on;
+    proxy_ssl_name positions.wotstat.info;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host positions.wotstat.info;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header CF-Connecting-IP $remote_addr;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 120s;
+    proxy_send_timeout 120s;
+    proxy_redirect https://positions.wotstat.info/ https://$host/;
+    add_header X-Cache-Status $upstream_cache_status always;
+    add_header X-Cache-Age $upstream_http_age always;
+  }
+
+  listen 443 ssl;
+  ssl_certificate /etc/letsencrypt/live/mtstat.info/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/mtstat.info/privkey.pem;
+  include /etc/letsencrypt/options-ssl-nginx.conf;
+  ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+server {
+  server_name static.mtstat.info widgets.mtstat.info cef-storage.mtstat.info;
+
+  proxy_cache $mtstat_storage_cache;
+  proxy_cache_key "$scheme$request_method$host$request_uri";
+  proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+  proxy_cache_background_update on;
+  proxy_cache_lock on;
+
+  location / {
+    resolver 8.8.8.8 1.1.1.1 valid=300s;
+    proxy_pass http://$mtstat_upstream_host.website.yandexcloud.net$request_uri;
+    proxy_set_header Host $mtstat_storage_host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_hide_header x-amz-id-2;
+    proxy_hide_header x-amz-request-id;
+    add_header X-Cache-Status $upstream_cache_status always;
+    add_header X-Cache-Age $upstream_http_age always;
+    absolute_redirect off;
+  }
+
+  listen 443 ssl;
+  ssl_certificate /etc/letsencrypt/live/mtstat.info/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/mtstat.info/privkey.pem;
+  include /etc/letsencrypt/options-ssl-nginx.conf;
+  ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+server {
+  server_name positions.mtstat.info static.mtstat.info widgets.mtstat.info cef-storage.mtstat.info;
+  listen 80;
+  return 301 https://$host$request_uri;
+}
+
+# realtime, install, og, widgets-relay, widgets-remote and other services on main.
+server {
+  server_name ~^[^.]+\.mtstat\.info$;
+
+  location / {
+    proxy_pass https://wotstat_main_https$request_uri;
+    include /etc/nginx/snippets/main-failover.conf;
+    proxy_http_version 1.1;
+    proxy_ssl_server_name on;
+    proxy_ssl_name $mtstat_upstream_host;
+    proxy_set_header Host $mtstat_upstream_host;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header CF-Connecting-IP $remote_addr;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 120s;
+    proxy_send_timeout 120s;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_cache_bypass $is_websocket;
+    proxy_no_cache $do_not_store $is_websocket;
+    proxy_cache wotstat_cache_shared;
+    proxy_cache_key "$scheme$request_method$host$request_uri";
+    proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+    proxy_cache_background_update on;
+    proxy_cache_lock on;
+    proxy_redirect https://$mtstat_upstream_host/ https://$host/;
+    add_header X-Cache-Status $x_cache_status_pretty always;
+  }
+
+  listen 80;
+  listen 443 ssl;
+  ssl_certificate /etc/letsencrypt/live/mtstat.info/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/mtstat.info/privkey.pem;
+  include /etc/letsencrypt/options-ssl-nginx.conf;
+  ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}

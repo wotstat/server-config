@@ -1,3 +1,10 @@
+# RU proxies keep their own HTML cache lifetimes: 5 and 15 minutes.
+geo $realip_remote_addr $positions_html_cache_control {
+  default "public, max-age=300";
+  195.225.110.24 "";
+  185.221.199.41 "";
+}
+
 server {
   server_name positions.wotstat.info;
 
@@ -21,6 +28,7 @@ server {
   location / {
     root /app/positions/frontend/public;
     try_files $uri $uri/index.html /index.html;
+    add_header Cache-Control $positions_html_cache_control;
   }
 
   listen 443 ssl;
