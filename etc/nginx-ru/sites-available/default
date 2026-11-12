@@ -1,14 +1,11 @@
-
-# Default server configuration
-
-
 server {
-	listen 80 default_server;
-	listen [::]:80 default_server;
+  listen 80 default_server;
+  listen [::]:80 default_server;
+  listen 443 ssl default_server;
+  listen [::]:443 ssl default_server;
 
-	server_name _;
-
-	location / {
-		return 404;
-	}
+  include /etc/letsencrypt/options-ssl-nginx.conf;
+  # Known names, including the RU service regex, keep their own virtual hosts.
+  ssl_reject_handshake on;
+  return 444;
 }

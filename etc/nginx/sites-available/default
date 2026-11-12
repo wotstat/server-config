@@ -1,7 +1,11 @@
-
 server {
-	listen 80 default_server;
-	listen [::]:80 default_server;
+  listen 80 default_server;
+  listen [::]:80 default_server;
+  listen 443 ssl default_server;
+  listen [::]:443 ssl default_server;
 
-	return 404;
+  include /etc/letsencrypt/options-ssl-nginx.conf;
+  # Unknown SNI must not inherit the first service's certificate or upstream.
+  ssl_reject_handshake on;
+  return 444;
 }

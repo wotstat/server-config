@@ -1,0 +1,23 @@
+# Exact service names take precedence over this first-level fallback.
+# The existing Certbot certificate must also cover *.wotstat.info via DNS-01.
+server {
+  server_name ~^[^.]+\.wotstat\.info$;
+
+  listen 80;
+  listen [::]:80;
+  listen 443 ssl;
+  listen [::]:443 ssl;
+  ssl_certificate /etc/letsencrypt/live/wotstat.info/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/wotstat.info/privkey.pem;
+  include /etc/letsencrypt/options-ssl-nginx.conf;
+  ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+  add_header Cache-Control "no-store" always;
+
+  if ($request_method !~ ^(GET|HEAD)$) {
+    return 404;
+  }
+
+  # Do not forward an unknown service's path, query string, or request body.
+  return 302 https://wotstat.info/;
+}

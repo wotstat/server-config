@@ -98,9 +98,12 @@ server {
   return 301 https://$host$request_uri;
 }
 
-# realtime, install, og, widgets-relay, widgets-remote and other services on main.
+# Keep the existing proxy configuration only for services configured on main.
+# Unknown names are handled by unmatched-domains instead of reaching an upstream.
 server {
-  server_name ~^[^.]+\.mtstat\.info$;
+  server_name grafana.mtstat.info install.mtstat.info loki.mtstat.info
+              og.mtstat.info realtime.mtstat.info valberton-style-storage.mtstat.info
+              widgets-relay.mtstat.info widgets-remote.mtstat.info;
 
   location / {
     proxy_pass https://wotstat_main_https$request_uri;
